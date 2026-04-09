@@ -1,0 +1,20 @@
+{
+  "name": "tmdb-obsidian-plugin",
+  "version": "1.0.0",
+  "description": "Search movies and TV shows via TMDB and fill Obsidian note templates with retrieved data.",
+  "main": "main.js",
+  "scripts": {
+    "dev": "node esbuild.config.mjs",
+    "build": "node esbuild.config.mjs production"
+  },
+  "keywords": [],
+  "author": "Kaleb",
+  "license": "MIT",
+  "devDependencies": {
+    "@types/node": "^20.0.0",
+    "builtin-modules": "^3.3.0",
+    "esbuild": "^0.21.0",
+    "obsidian": "latest",
+    "typescript": "^5.4.0"
+  }
+}

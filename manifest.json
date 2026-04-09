@@ -1,0 +1,10 @@
+{
+  "id": "tmdb-obsidian-plugin",
+  "name": "TMDB Search",
+  "version": "1.0.0",
+  "minAppVersion": "0.15.0",
+  "description": "Search movies and TV shows via TMDB and fill note templates with retrieved data.",
+  "author": "Kaleb",
+  "authorUrl": "",
+  "isDesktopOnly": false
+}

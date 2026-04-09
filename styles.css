@@ -1,0 +1,48 @@
+/* TMDB Search Plugin — result row styles */
+
+.tmdb-result-item {
+	display: flex;
+	flex-direction: column;
+	gap: 2px;
+	padding: 2px 0;
+}
+
+.tmdb-result-main {
+	display: flex;
+	align-items: center;
+	gap: 8px;
+}
+
+.tmdb-result-title {
+	font-weight: 600;
+	flex: 1;
+}
+
+.tmdb-result-badge {
+	font-size: 0.7em;
+	padding: 1px 7px;
+	border-radius: 9999px;
+	font-weight: 700;
+	text-transform: uppercase;
+	letter-spacing: 0.04em;
+	flex-shrink: 0;
+}
+
+.tmdb-badge-movie {
+	background-color: var(--color-blue);
+	color: white;
+}
+
+.tmdb-badge-tv {
+	background-color: var(--color-purple);
+	color: white;
+}
+
+.tmdb-result-overview {
+	font-size: 0.82em;
+	color: var(--text-muted);
+	overflow: hidden;
+	white-space: nowrap;
+	text-overflow: ellipsis;
+	max-width: 480px;
+}
