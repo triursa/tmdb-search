@@ -9,12 +9,20 @@
   },
   "keywords": [],
   "author": "Kaleb",
+  "homepage": "https://github.com/triursa/tmdb-obsidian-plugin#readme",
+  "repository": {
+    "type": "git",
+    "url": "git+https://github.com/triursa/tmdb-obsidian-plugin.git"
+  },
+  "bugs": {
+    "url": "https://github.com/triursa/tmdb-obsidian-plugin/issues"
+  },
   "license": "MIT",
   "devDependencies": {
     "@types/node": "^20.0.0",
     "builtin-modules": "^3.3.0",
-    "esbuild": "^0.21.0",
-    "obsidian": "latest",
+    "esbuild": "^0.28.0",
+    "obsidian": "^1.12.3",
     "typescript": "^5.4.0"
   }
 }

@@ -1,0 +1,15 @@
+# Dependencies
+node_modules/
+
+# Local AI tooling config (optional, do not commit)
+.claude/
+
+# Logs
+npm-debug.log*
+yarn-debug.log*
+yarn-error.log*
+pnpm-debug.log*
+
+# OS/editor noise
+.DS_Store
+Thumbs.db

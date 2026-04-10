@@ -93,7 +93,7 @@ var TMDBSettingTab = class extends import_obsidian.PluginSettingTab {
     containerEl.empty();
     containerEl.createEl("h2", { text: "TMDB Search Settings" });
     new import_obsidian.Setting(containerEl).setName("API Read Access Token").setDesc(
-      "Your TMDB API Read Access Token (Bearer). Get one at themoviedb.org under Settings \u2192 API."
+      "Your TMDB API Read Access Token (Bearer). Get one at themoviedb.org under Settings -> API. TMDB usage is subject to https://www.themoviedb.org/api-terms-of-use."
     ).addText((text) => {
       text.setPlaceholder("eyJhbGciOiJIUzI1NiJ9...").setValue(this.plugin.settings.apiReadAccessToken).onChange(async (value) => {
         this.plugin.settings.apiReadAccessToken = value.trim();
@@ -143,6 +143,35 @@ var TMDBSettingTab = class extends import_obsidian.PluginSettingTab {
       area.inputEl.style.fontFamily = "monospace";
       area.inputEl.style.fontSize = "12px";
     });
+    containerEl.createEl("h3", { text: "TMDB Attribution" });
+    const tmdbAttribution = containerEl.createDiv({
+      cls: "setting-item-description"
+    });
+    const tmdbLogoLink = tmdbAttribution.createEl("a", {
+      attr: {
+        href: "https://www.themoviedb.org/about/logos-attribution",
+        target: "_blank",
+        rel: "noopener noreferrer"
+      }
+    });
+    tmdbLogoLink.createEl("img", {
+      attr: {
+        src: "https://www.themoviedb.org/assets/2/v4/logos/v2/blue_long_2-9665a76b1ae401a510ec1e0ca40ddcb3b0cfe45f1d51b77a308fea0845885648.svg",
+        alt: "TMDB logo",
+        width: "140"
+      }
+    });
+    tmdbAttribution.createEl("p", {
+      text: "This product uses the TMDB API but is not endorsed or certified by TMDB."
+    });
+    tmdbAttribution.createEl("a", {
+      text: "https://www.themoviedb.org",
+      attr: {
+        href: "https://www.themoviedb.org",
+        target: "_blank",
+        rel: "noopener noreferrer"
+      }
+    });
   }
 };
 
@@ -160,6 +189,8 @@ var TMDBClient = class {
     this.token = token;
     this.baseUrl = "https://api.themoviedb.org/3";
     this.imageBaseUrl = "https://image.tmdb.org/t/p/w500";
+    this.max429Retries = 3;
+    this.retryBaseDelayMs = 750;
   }
   async searchMulti(query) {
     const encoded = encodeURIComponent(query);
@@ -216,7 +247,7 @@ var TMDBClient = class {
       seasons: String(data.number_of_seasons)
     };
   }
-  async fetchTMDB(path) {
+  async fetchTMDB(path, retryCount = 0) {
     const response = await fetch(`${this.baseUrl}${path}`, {
       headers: {
         Authorization: `Bearer ${this.token}`,
@@ -224,21 +255,43 @@ var TMDBClient = class {
       }
     });
     if (!response.ok) {
+      if (response.status === 429 && retryCount < this.max429Retries) {
+        const retryDelayMs = this.getRetryDelayMs(response, retryCount);
+        await this.delay(retryDelayMs);
+        return this.fetchTMDB(path, retryCount + 1);
+      }
       const isAuthError = response.status === 401;
-      let message = `TMDB API error: ${response.status} ${response.statusText}`;
-      try {
-        const body = await response.json();
-        if (body.status_message) {
-          message = body.status_message;
-        }
-      } catch (e) {
+      let message = "TMDB request failed. Please try again.";
+      if (response.status === 401) {
+        message = "TMDB authentication failed. Check your API token.";
+      } else if (response.status === 404) {
+        message = "TMDB resource not found.";
+      } else if (response.status >= 500) {
+        message = "TMDB service is unavailable. Please try again later.";
+      }
+      if (response.status === 429) {
+        message = "TMDB rate limit reached after automatic retries. Please try again shortly.";
       }
       throw new TMDBError(message, response.status, isAuthError);
     }
     return response.json();
   }
+  getRetryDelayMs(response, retryCount) {
+    const retryAfterHeader = response.headers.get("Retry-After");
+    const retryAfterSeconds = retryAfterHeader ? Number.parseInt(retryAfterHeader, 10) : Number.NaN;
+    if (Number.isFinite(retryAfterSeconds) && retryAfterSeconds > 0) {
+      return Math.min(retryAfterSeconds * 1e3, 1e4);
+    }
+    return Math.min(this.retryBaseDelayMs * 2 ** retryCount, 1e4);
+  }
+  delay(ms) {
+    return new Promise((resolve) => window.setTimeout(resolve, ms));
+  }
   getPosterUrl(path) {
     if (!path) return "";
+    if (!/^\/[a-zA-Z0-9/_-]+\.(jpg|jpeg|png|webp)$/i.test(path)) {
+      return "";
+    }
     return `${this.imageBaseUrl}${path}`;
   }
   formatRating(avg) {
@@ -336,7 +389,7 @@ var TMDBSearchModal = class extends import_obsidian2.SuggestModal {
   async createNewNote(content, data) {
     const sanitized = data.title.replace(/[\\/:*?"<>|]/g, "-");
     const baseName = data.year ? `${sanitized} (${data.year})` : sanitized;
-    const folder = this.settings.newNoteFolder ? this.settings.newNoteFolder.replace(/\/$/, "") : "";
+    const folder = this.normalizeFolderPath(this.settings.newNoteFolder);
     const buildPath = (suffix) => {
       const name = suffix ? `${baseName} ${suffix}` : baseName;
       return folder ? `${folder}/${name}.md` : `${name}.md`;
@@ -349,6 +402,22 @@ var TMDBSearchModal = class extends import_obsidian2.SuggestModal {
     }
     const file = await this.app.vault.create(path, content);
     await this.app.workspace.getLeaf(false).openFile(file);
+  }
+  normalizeFolderPath(rawFolder) {
+    const trimmed = rawFolder.trim();
+    if (!trimmed) {
+      return "";
+    }
+    const normalized = trimmed.replace(/\\/g, "/").replace(/\/+$/, "");
+    const invalidSegment = normalized.split("/").some((segment) => segment === ".." || segment === ".");
+    const isAbsolute = normalized.startsWith("/");
+    const hasDrivePrefix = /^[a-zA-Z]:/.test(normalized);
+    if (invalidSegment || isAbsolute || hasDrivePrefix) {
+      throw new Error(
+        "Invalid new note folder in settings. Use a vault-relative folder path without traversal segments."
+      );
+    }
+    return normalized;
   }
   getDisplayInfo(result) {
     var _a, _b, _c, _d;
@@ -364,12 +433,16 @@ var TMDBSearchModal = class extends import_obsidian2.SuggestModal {
           "TMDB: Invalid API token. Check your settings."
         );
       } else if (error.statusCode === 429) {
-        new import_obsidian2.Notice("TMDB: Too many requests. Please wait a moment.");
+        new import_obsidian2.Notice(
+          "TMDB: Rate limit reached. The plugin retried automatically and is still limited. Please wait a moment."
+        );
       } else {
         new import_obsidian2.Notice(`TMDB error: ${error.message}`);
       }
     } else if (error instanceof TypeError) {
       new import_obsidian2.Notice("TMDB: Network error. Check your connection.");
+    } else if (error instanceof Error && error.message) {
+      new import_obsidian2.Notice(error.message);
     } else {
       new import_obsidian2.Notice("TMDB: An unexpected error occurred.");
     }

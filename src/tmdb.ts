@@ -84,6 +84,8 @@ export type { TMDBSearchResult };
 export class TMDBClient {
 	private readonly baseUrl = "https://api.themoviedb.org/3";
 	private readonly imageBaseUrl = "https://image.tmdb.org/t/p/w500";
+	private readonly max429Retries = 3;
+	private readonly retryBaseDelayMs = 750;
 
 	constructor(private token: string) {}
 
@@ -154,7 +156,7 @@ export class TMDBClient {
 		};
 	}
 
-	private async fetchTMDB<T>(path: string): Promise<T> {
+	private async fetchTMDB<T>(path: string, retryCount = 0): Promise<T> {
 		const response = await fetch(`${this.baseUrl}${path}`, {
 			headers: {
 				Authorization: `Bearer ${this.token}`,
@@ -163,24 +165,54 @@ export class TMDBClient {
 		});
 
 		if (!response.ok) {
-			const isAuthError = response.status === 401;
-			let message = `TMDB API error: ${response.status} ${response.statusText}`;
-			try {
-				const body = await response.json() as { status_message?: string };
-				if (body.status_message) {
-					message = body.status_message;
-				}
-			} catch {
-				// ignore JSON parse failure
+			if (response.status === 429 && retryCount < this.max429Retries) {
+				const retryDelayMs = this.getRetryDelayMs(response, retryCount);
+				await this.delay(retryDelayMs);
+				return this.fetchTMDB<T>(path, retryCount + 1);
 			}
+
+			const isAuthError = response.status === 401;
+			let message = "TMDB request failed. Please try again.";
+
+			if (response.status === 401) {
+				message = "TMDB authentication failed. Check your API token.";
+			} else if (response.status === 404) {
+				message = "TMDB resource not found.";
+			} else if (response.status >= 500) {
+				message = "TMDB service is unavailable. Please try again later.";
+			}
+			if (response.status === 429) {
+				message = "TMDB rate limit reached after automatic retries. Please try again shortly.";
+			}
+
 			throw new TMDBError(message, response.status, isAuthError);
 		}
 
 		return response.json() as Promise<T>;
 	}
 
+	private getRetryDelayMs(response: Response, retryCount: number): number {
+		const retryAfterHeader = response.headers.get("Retry-After");
+		const retryAfterSeconds = retryAfterHeader
+			? Number.parseInt(retryAfterHeader, 10)
+			: Number.NaN;
+
+		if (Number.isFinite(retryAfterSeconds) && retryAfterSeconds > 0) {
+			return Math.min(retryAfterSeconds * 1000, 10000);
+		}
+
+		return Math.min(this.retryBaseDelayMs * 2 ** retryCount, 10000);
+	}
+
+	private delay(ms: number): Promise<void> {
+		return new Promise((resolve) => window.setTimeout(resolve, ms));
+	}
+
 	private getPosterUrl(path: string | null): string {
 		if (!path) return "";
+		if (!/^\/[a-zA-Z0-9/_-]+\.(jpg|jpeg|png|webp)$/i.test(path)) {
+			return "";
+		}
 		return `${this.imageBaseUrl}${path}`;
 	}
 

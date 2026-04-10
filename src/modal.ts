@@ -112,9 +112,7 @@ export class TMDBSearchModal extends SuggestModal<TMDBSearchResult> {
 			? `${sanitized} (${data.year})`
 			: sanitized;
 
-		const folder = this.settings.newNoteFolder
-			? this.settings.newNoteFolder.replace(/\/$/, "")
-			: "";
+		const folder = this.normalizeFolderPath(this.settings.newNoteFolder);
 
 		const buildPath = (suffix: string) => {
 			const name = suffix ? `${baseName} ${suffix}` : baseName;
@@ -133,6 +131,28 @@ export class TMDBSearchModal extends SuggestModal<TMDBSearchResult> {
 
 		const file = await this.app.vault.create(path, content);
 		await this.app.workspace.getLeaf(false).openFile(file);
+	}
+
+	private normalizeFolderPath(rawFolder: string): string {
+		const trimmed = rawFolder.trim();
+		if (!trimmed) {
+			return "";
+		}
+
+		const normalized = trimmed.replace(/\\/g, "/").replace(/\/+$/, "");
+		const invalidSegment = normalized
+			.split("/")
+			.some((segment) => segment === ".." || segment === ".");
+		const isAbsolute = normalized.startsWith("/");
+		const hasDrivePrefix = /^[a-zA-Z]:/.test(normalized);
+
+		if (invalidSegment || isAbsolute || hasDrivePrefix) {
+			throw new Error(
+				"Invalid new note folder in settings. Use a vault-relative folder path without traversal segments."
+			);
+		}
+
+		return normalized;
 	}
 
 	private getDisplayInfo(result: TMDBSearchResult): {
@@ -161,12 +181,16 @@ export class TMDBSearchModal extends SuggestModal<TMDBSearchResult> {
 					"TMDB: Invalid API token. Check your settings."
 				);
 			} else if (error.statusCode === 429) {
-				new Notice("TMDB: Too many requests. Please wait a moment.");
+				new Notice(
+					"TMDB: Rate limit reached. The plugin retried automatically and is still limited. Please wait a moment."
+				);
 			} else {
 				new Notice(`TMDB error: ${error.message}`);
 			}
 		} else if (error instanceof TypeError) {
 			new Notice("TMDB: Network error. Check your connection.");
+		} else if (error instanceof Error && error.message) {
+			new Notice(error.message);
 		} else {
 			new Notice("TMDB: An unexpected error occurred.");
 		}

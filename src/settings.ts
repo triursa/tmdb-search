@@ -78,7 +78,7 @@ export class TMDBSettingTab extends PluginSettingTab {
 		new Setting(containerEl)
 			.setName("API Read Access Token")
 			.setDesc(
-				"Your TMDB API Read Access Token (Bearer). Get one at themoviedb.org under Settings → API."
+				"Your TMDB API Read Access Token (Bearer). Get one at themoviedb.org under Settings -> API. TMDB usage is subject to https://www.themoviedb.org/api-terms-of-use."
 			)
 			.addText((text) => {
 				text
@@ -162,5 +162,35 @@ export class TMDBSettingTab extends PluginSettingTab {
 				area.inputEl.style.fontFamily = "monospace";
 				area.inputEl.style.fontSize = "12px";
 			});
+
+		containerEl.createEl("h3", { text: "TMDB Attribution" });
+		const tmdbAttribution = containerEl.createDiv({
+			cls: "setting-item-description",
+		});
+		const tmdbLogoLink = tmdbAttribution.createEl("a", {
+			attr: {
+				href: "https://www.themoviedb.org/about/logos-attribution",
+				target: "_blank",
+				rel: "noopener noreferrer",
+			},
+		});
+		tmdbLogoLink.createEl("img", {
+			attr: {
+				src: "https://www.themoviedb.org/assets/2/v4/logos/v2/blue_long_2-9665a76b1ae401a510ec1e0ca40ddcb3b0cfe45f1d51b77a308fea0845885648.svg",
+				alt: "TMDB logo",
+				width: "140",
+			},
+		});
+		tmdbAttribution.createEl("p", {
+			text: "This product uses the TMDB API but is not endorsed or certified by TMDB.",
+		});
+		tmdbAttribution.createEl("a", {
+			text: "https://www.themoviedb.org",
+			attr: {
+				href: "https://www.themoviedb.org",
+				target: "_blank",
+				rel: "noopener noreferrer",
+			},
+		});
 	}
 }

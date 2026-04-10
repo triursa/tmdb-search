@@ -5,6 +5,6 @@
   "minAppVersion": "0.15.0",
   "description": "Search movies and TV shows via TMDB and fill note templates with retrieved data.",
   "author": "Kaleb",
-  "authorUrl": "",
+  "authorUrl": "https://github.com/triursa",
   "isDesktopOnly": false
 }
